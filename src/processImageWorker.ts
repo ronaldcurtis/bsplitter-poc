@@ -24,9 +24,9 @@ self.onmessage = async (e: MessageEvent<Message>) => {
     await init()
     greet()
     canvas = e.data.targetCanvas
-    const context = canvas.getContext('2d')
+    const context = canvas.getContext('2d', { willReadFrequently: true })
     if (context) ctx = context
-  } else if (type === 'process_image') {
+  } else if (type === 'process_image' && ctx) {
     const { image, width, height } = e.data
     process_image(ctx, new Uint8Array(image), width, height)
   }

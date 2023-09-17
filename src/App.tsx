@@ -10,7 +10,7 @@ function renderAndProcessVideo(canvas: HTMLCanvasElement, video: HTMLVideoElemen
   function render() {
     if (ctx) {
       ctx.drawImage(video, 0, 0, 400, 300)
-      const image = ctx.getImageData(0, 0, 400, 300)
+      const image = ctx.getImageData(0, 0, 400, 300, )
       worker.postMessage({type: 'process_image', image: image.data, width: 400, height: 300 }, [image.data.buffer])
       requestAnimationFrame(render)
     }
