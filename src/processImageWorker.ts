@@ -1,4 +1,4 @@
-import init, { greet } from '../bsplitter-wasm/pkg'
+import init, { greet, process_image } from '../bsplitter-wasm/pkg'
 
 /* eslint-disable no-restricted-globals */
 
@@ -16,6 +16,7 @@ type ProcessImageMessage = {
 
 type Message = InitMessage | ProcessImageMessage
 let canvas: HTMLCanvasElement
+let ctx: CanvasRenderingContext2D
 
 self.onmessage = async (e: MessageEvent<Message>) => {
   const {type} = e.data
@@ -23,11 +24,10 @@ self.onmessage = async (e: MessageEvent<Message>) => {
     await init()
     greet()
     canvas = e.data.targetCanvas
-    canvas.getContext('2d')
+    const context = canvas.getContext('2d')
+    if (context) ctx = context
   } else if (type === 'process_image') {
     const { image, width, height } = e.data
-    if (canvas) {
-      canvas.getContext('2d')?.putImageData(new ImageData(image, width, height), 0, 0)
-    }
+    process_image(ctx, new Uint8Array(image), width, height)
   }
 }
