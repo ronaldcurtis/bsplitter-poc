@@ -1,7 +1,6 @@
 import './App.css'
 import {useEffect, useRef} from "react";
 import ProcessImageWorker from './processImageWorker.ts?worker'
-import init, { greet } from '../bsplitter-wasm/pkg'
 
 
 const worker = new ProcessImageWorker()
@@ -25,8 +24,6 @@ function App() {
   const sourceCanvasRef = useRef<HTMLCanvasElement | null>(null)
   useEffect(() => {
     async function setVideo() {
-      await init()
-      greet()
       const camStream = await navigator.mediaDevices.getUserMedia({video: true})
       if (videoRef.current) {
         videoRef.current.srcObject = camStream

@@ -1,3 +1,5 @@
+import init, { greet } from '../bsplitter-wasm/pkg'
+
 /* eslint-disable no-restricted-globals */
 
 type InitMessage = {
@@ -15,9 +17,11 @@ type ProcessImageMessage = {
 type Message = InitMessage | ProcessImageMessage
 let canvas: HTMLCanvasElement
 
-self.onmessage = (e: MessageEvent<Message>) => {
+self.onmessage = async (e: MessageEvent<Message>) => {
   const {type} = e.data
   if (type === 'init') {
+    await init()
+    greet()
     canvas = e.data.targetCanvas
     canvas.getContext('2d')
   } else if (type === 'process_image') {
