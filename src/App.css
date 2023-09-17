@@ -10,3 +10,15 @@
   height: 0;
   width: 0;
 }
+
+.canvasCon {
+  position: relative;
+}
+
+#sourceCanvas {
+  visibility: hidden;
+}
+#targetCanvas {
+  position: absolute;
+  z-index: 2;
+}
