@@ -3,7 +3,7 @@ use dcv_color_primitives::{convert_image, ColorSpace, ErrorKind, ImageFormat, Pi
 use imageproc::drawing::{draw_cross_mut, draw_hollow_rect_mut};
 use pico_detect::{
     image::{DynamicImage, GrayImage, RgbImage, Rgba, RgbaImage},
-    nalgebra::{center, Isometry2, Point2, Similarity2},
+    nalgebra::{Isometry2, Point2, Similarity2},
     Detection, Detector, Localizer, MultiScale, Rect as PicoRect, Shaper,
 };
 use rand::SeedableRng;
@@ -91,7 +91,7 @@ const SCALE_FACTOR: f32 = 1.1;
 
 struct Face {
     rect: PicoRect,
-    shape: Vec<Point2<f32>>,
+    eyes_and_nose: Vec<Point2<f32>>,
     pupils: (Point2<f32>, Point2<f32>),
 }
 
@@ -133,8 +133,8 @@ fn detect_faces_and_landmarks(
             )
             .of_size(size as u32, size as u32);
 
-            let shape = shaper.predict(gray, rect);
-            let pupils = Shape5::find_eyes_roi(&shape);
+            let eyes_and_nose = shaper.predict(gray, rect);
+            let pupils = EyesAndNose::find_pupils(&eyes_and_nose);
             let pupils = (
                 localizer.perturb_localize(gray, pupils.0, &mut rng, nperturbs),
                 localizer.perturb_localize(gray, pupils.1, &mut rng, nperturbs),
@@ -142,7 +142,7 @@ fn detect_faces_and_landmarks(
 
             Some(Face {
                 rect,
-                shape,
+                eyes_and_nose,
                 pupils,
             })
         })
@@ -152,7 +152,7 @@ fn detect_faces_and_landmarks(
 fn draw_face(image: &mut RgbaImage, face: &Face) {
     draw_hollow_rect_mut(image, face.rect, Rgba([0, 0, 255, 255]));
 
-    for (_i, point) in face.shape.iter().enumerate() {
+    for (_i, point) in face.eyes_and_nose.iter().enumerate() {
         draw_cross_mut(
             image,
             Rgba([0, 255, 0, 255]),
@@ -175,15 +175,15 @@ fn draw_face(image: &mut RgbaImage, face: &Face) {
     );
 }
 
-enum Shape5 {
+enum EyesAndNose {
     LeftOuterEyeCorner = 0,
     LeftInnerEyeCorner = 1,
     RightOuterEyeCorner = 2,
     RightInnerEyeCorner = 3,
 }
 
-impl Shape5 {
-    fn find_eyes_roi(shape: &[Point2<f32>]) -> (Similarity2<f32>, Similarity2<f32>) {
+impl EyesAndNose {
+    fn find_pupils(shape: &[Point2<f32>]) -> (Similarity2<f32>, Similarity2<f32>) {
         let (li, lo) = (
             &shape[Self::LeftInnerEyeCorner as usize],
             &shape[Self::LeftOuterEyeCorner as usize],
