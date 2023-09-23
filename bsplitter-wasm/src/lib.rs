@@ -1,10 +1,8 @@
 mod utils;
+use dcv_color_primitives::{convert_image, ColorSpace, ErrorKind, ImageFormat, PixelFormat};
 use imageproc::drawing::{draw_cross_mut, draw_hollow_rect_mut};
 use pico_detect::{
-    image::{
-        DynamicImage::{self, ImageRgba8},
-        GrayImage, Rgba, RgbaImage,
-    },
+    image::{DynamicImage, GrayImage, RgbImage, Rgba, RgbaImage},
     nalgebra::{center, Isometry2, Point2, Similarity2},
     Detection, Detector, Localizer, MultiScale, Rect as PicoRect, Shaper,
 };
@@ -21,12 +19,66 @@ macro_rules! console_log {
     }
 }
 
+const SRC_FORMAT: ImageFormat = ImageFormat {
+    pixel_format: PixelFormat::Nv12,
+    color_space: ColorSpace::Bt709,
+    num_planes: 1,
+};
+
+const DST_FORMAT: ImageFormat = ImageFormat {
+    pixel_format: PixelFormat::Rgb,
+    color_space: ColorSpace::Rgb,
+    num_planes: 1,
+};
+
 #[wasm_bindgen]
 extern "C" {}
 
 #[wasm_bindgen]
 pub fn greet() {
-    console_log!("Hello, bsplitter-wasm! From a worker");
+    console_log!("Hello! From wasm!");
+}
+
+#[wasm_bindgen]
+pub fn process_video_frame(
+    ctx: &CanvasRenderingContext2d,
+    raw_video_pixels: &mut [u8],
+    width: u32,
+    height: u32,
+) -> Result<(), JsValue> {
+    dcv_color_primitives::initialize();
+    let length: u32 = 3 * width * height;
+    let mut dst_data = vec![0; length as usize];
+
+    let _ = convert_image(
+        width,
+        height,
+        &SRC_FORMAT,
+        None,
+        &[raw_video_pixels],
+        &DST_FORMAT,
+        None,
+        &mut [&mut dst_data],
+    )
+    .map_err(|e| match e {
+        ErrorKind::NotEnoughData => JsError::new("convert_image:NotEnoughData"),
+        ErrorKind::InvalidOperation => JsError::new("convert_image:InvalidOperation"),
+        ErrorKind::NotInitialized => JsError::new("convert_image:NotInitialized"),
+        ErrorKind::InvalidValue => JsError::new("convert_image:InvalidValue"),
+    })?;
+
+    let rgb_image_buffer = RgbImage::from_raw(width, height, dst_data).unwrap_throw();
+    let dyn_image = DynamicImage::from(DynamicImage::ImageRgb8(rgb_image_buffer));
+    let (gray_image_buffer, mut rgba_image_buffer) = (dyn_image.to_luma8(), dyn_image.to_rgba8());
+    let (facefinder, mut shaper, puploc) = load_models();
+    let faces = detect_faces_and_landmarks(&gray_image_buffer, &facefinder, &mut shaper, &puploc);
+    for face in faces.iter() {
+        draw_face(&mut rgba_image_buffer, &face);
+    }
+
+    let new_image_data =
+        ImageData::new_with_u8_clamped_array_and_sh(Clamped(&rgba_image_buffer), width, height)?;
+    ctx.put_image_data(&new_image_data, 0.0, 0.0)
 }
 
 pub static FACE_DETECTOR_MODEL: &[u8] = include_bytes!("../assets/pico-face-detector.bin");
@@ -38,7 +90,6 @@ const SHIFT_FACTOR: f32 = 0.05;
 const SCALE_FACTOR: f32 = 1.1;
 
 struct Face {
-    score: f32,
     rect: PicoRect,
     shape: Vec<Point2<f32>>,
     pupils: (Point2<f32>, Point2<f32>),
@@ -52,7 +103,7 @@ fn load_models() -> (Detector, Shaper, Localizer) {
     (facefinder, shaper, puploc)
 }
 
-fn detect_faces(
+fn detect_faces_and_landmarks(
     gray: &GrayImage,
     detector: &Detector,
     shaper: &mut Shaper,
@@ -91,7 +142,6 @@ fn detect_faces(
 
             Some(Face {
                 rect,
-                score: detection.score(),
                 shape,
                 pupils,
             })
@@ -130,32 +180,10 @@ enum Shape5 {
     LeftInnerEyeCorner = 1,
     RightOuterEyeCorner = 2,
     RightInnerEyeCorner = 3,
-    #[allow(dead_code)]
-    Nose = 4,
 }
 
 impl Shape5 {
-    fn size() -> usize {
-        5
-    }
-
-    #[allow(dead_code)]
-    fn find_eye_centers(shape: &[Point2<f32>]) -> (Point2<f32>, Point2<f32>) {
-        assert_eq!(shape.len(), Self::size());
-        (
-            center(
-                &shape[Self::LeftInnerEyeCorner as usize],
-                &shape[Self::LeftOuterEyeCorner as usize],
-            ),
-            center(
-                &shape[Self::RightInnerEyeCorner as usize],
-                &shape[Self::RightOuterEyeCorner as usize],
-            ),
-        )
-    }
-
     fn find_eyes_roi(shape: &[Point2<f32>]) -> (Similarity2<f32>, Similarity2<f32>) {
-        assert_eq!(shape.len(), Self::size());
         let (li, lo) = (
             &shape[Self::LeftInnerEyeCorner as usize],
             &shape[Self::LeftOuterEyeCorner as usize],
@@ -173,24 +201,4 @@ impl Shape5 {
             Similarity2::from_isometry(Isometry2::translation(r.x, r.y), dr.norm() * 1.1),
         )
     }
-}
-
-#[wasm_bindgen]
-pub fn process_image(
-    ctx: &CanvasRenderingContext2d,
-    source_image_data: &mut [u8],
-    width: u32,
-    height: u32,
-) -> Result<(), JsValue> {
-    let rgba = RgbaImage::from_raw(width, height, source_image_data.to_vec()).unwrap_throw();
-    let dyn_image = DynamicImage::from(ImageRgba8(rgba));
-    let (gray, mut image) = (dyn_image.to_luma8(), dyn_image.to_rgba8());
-    let (facefinder, mut shaper, puploc) = load_models();
-    let faces = detect_faces(&gray, &facefinder, &mut shaper, &puploc);
-    for face in faces.iter() {
-        draw_face(&mut image, &face);
-    }
-    let new_image_data =
-        ImageData::new_with_u8_clamped_array_and_sh(Clamped(&image), width, height)?;
-    ctx.put_image_data(&new_image_data, 0.0, 0.0)
 }

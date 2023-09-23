@@ -46,6 +46,7 @@ name = "bsplitter-wasm"
 version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
+ "dcv-color-primitives",
  "getrandom 0.2.10",
  "image 0.24.7",
  "imageproc",
@@ -169,6 +170,16 @@ name = "custom_derive"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ef8ae57c4978a2acd8b869ce6b9ca1dfe817bff704c220209fdef2c0b75a01b9"
+
+[[package]]
+name = "dcv-color-primitives"
+version = "0.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "311d7bbd97a6b47fdf7f8583c63354ffd959f820544673fdafb25c2c7004a164"
+dependencies = [
+ "paste",
+ "wasm-bindgen",
+]
 
 [[package]]
 name = "derive-new"

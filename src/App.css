@@ -14,11 +14,3 @@
 .canvasCon {
   position: relative;
 }
-
-#sourceCanvas {
-  visibility: hidden;
-}
-#targetCanvas {
-  position: absolute;
-  z-index: 2;
-}
